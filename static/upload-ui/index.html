@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>HyNa Print | Upload & Print</title>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    :root {
+      --primary: #4C1D95;
+      --primary-light: #F3E8FF;
+      --bg-main: #F8F9FA;
+      --card-bg: #FFFFFF;
+      --text-main: #1E293B;
+      --text-muted: #64748B;
+      --border-color: #E2E8F0;
+      --radius-lg: 16px;
+      --radius-md: 8px;
+    }
+
+    body { background: var(--bg-main); font-family: 'Inter', sans-serif; margin: 0; padding: 0; color: var(--text-main); -webkit-font-smoothing: antialiased; }
+    .top-hero { width: 100%; position: relative; background: transparent; border-bottom-left-radius: 24px; border-bottom-right-radius: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden; margin-bottom: -16px; padding: 0; }
+    .banner-img { width: 100%; height: auto; display: block; }
+    .container { padding: 0 16px 100px 16px; max-width: 500px; margin: 0 auto; position: relative; z-index: 5; }
+    .ui-card { background: var(--card-bg); border-radius: var(--radius-lg); padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.04); margin-bottom: 16px; border: 1px solid rgba(0,0,0,0.02); }
+    .section-title { display: flex; align-items: center; font-weight: 700; font-size: 16px; margin-bottom: 16px; }
+    .badge { background: var(--primary); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 12px; font-weight: 800; }
+
+    /* 🚀 HORIZONTAL TEMPLATE CAROUSEL STYLES */
+    .template-grid { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; scroll-behavior: smooth; margin-bottom: 4px; }
+    .template-grid::-webkit-scrollbar { display: none; }
+    .template-btn { flex: 0 0 110px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; padding: 12px 8px; background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s; text-align: center; }
+    .template-btn:hover { border-color: var(--primary); background: var(--primary-light); }
+    .template-info { display: flex; flex-direction: column; align-items: center; width: 100%; }
+    .template-name { font-size: 11px; font-weight: 700; color: var(--text-main); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; height: 28px; margin-bottom: 4px; }
+    .template-pages { font-size: 10px; font-weight: 600; color: var(--text-muted); }
+    .template-add-icon { margin-top: 8px; font-size: 18px; color: white; background: var(--primary); border-radius: 50%; padding: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+    .file-drop-area { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px 14px; border: 2px dashed #CBD5E1; border-radius: var(--radius-lg); background: #F8FAFC; cursor: pointer; transition: all 0.2s ease; text-align: center; }
+    .file-drop-area:hover { border-color: var(--primary); background: var(--primary-light); }
+    .file-drop-area input[type="file"] { position: absolute; width: 100%; height: 100%; top: 0; left: 0; opacity: 0; cursor: pointer; }
+    .file-drop-area i { font-size: 40px; color: var(--primary); margin-bottom: 12px; }
+    .file-msg { font-size: 15px; font-weight: 700; color: var(--primary); margin-bottom: 4px;}
+    .file-sub { font-size: 12px; color: var(--text-muted); }
+    .add-more-btn { width: 100%; padding: 12px; background: #F8FAFC; border: 2px dashed #CBD5E1; border-radius: var(--radius-md); color: var(--primary); font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all 0.2s; }
+    .carousel-container { display: flex; gap: 12px; overflow-x: auto; padding: 10px 4px; margin-top: 8px; scroll-behavior: smooth; }
+    .carousel-container::-webkit-scrollbar { display: none; }
+
+    .file-card { flex: 0 0 100px; width: 100px; height: 110px; background: white; border: 2px solid var(--border-color); border-radius: var(--radius-md); display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; cursor: pointer; text-align: center; padding: 8px; transition: all 0.2s; box-shadow: 0 2px 6px rgba(0,0,0,0.02); overflow: hidden; }
+    .file-card.active { border-color: var(--primary); background: var(--primary-light); }
+    .file-card i.icon { font-size: 32px; color: var(--text-muted); margin-bottom: 8px; }
+    .file-card.active i.icon { color: var(--primary); }
+    .file-card .name { font-size: 11px; font-weight: 600; color: var(--text-main); width: 100%; max-width: 85px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; margin: 0 auto; }
+    .file-card .pages { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+    .file-card .template-tag { position: absolute; bottom: 0; left: 0; right: 0; background: var(--primary); color: white; font-size: 9px; font-weight: 700; padding: 2px 0; }
+    .remove-btn { position: absolute; top: -6px; right: -6px; background: #EF4444; color: white; border: none; border-radius: 50%; width: 22px; height: 22px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 10; }
+    .setting-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border-color); }
+    .setting-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .setting-row.hidden { display: none !important; }
+    .setting-label { display: flex; align-items: center; gap: 12px; font-weight: 600; color: var(--text-main); font-size: 14px; }
+    .setting-label i { font-size: 18px; color: var(--primary); background: var(--primary-light); padding: 6px; border-radius: 8px; }
+
+    .stepper { display: flex; align-items: center; border: 1px solid var(--border-color); border-radius: var(--radius-md); overflow: hidden; background: white; }
+    .stepper button { background: white; border: none; width: 32px; height: 34px; color: var(--text-main); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+    .stepper button:active { background: #f1f5f9; }
+    .stepper input { width: 40px; text-align: center; border: none; border-left: 1px solid var(--border-color); border-right: 1px solid var(--border-color); font-size: 14px; font-weight: 700; color: var(--text-main); padding: 0; height: 34px; pointer-events: none; }
+    .stepper.disabled { opacity: 0.5; pointer-events: none; }
+
+    .segmented-control { display: flex; background: #F1F5F9; border-radius: var(--radius-md); padding: 3px; }
+    .segment-btn { position: relative; }
+    .segment-btn input[type="radio"] { position: absolute; opacity: 0; }
+    .segment-content { padding: 6px 12px; border-radius: 6px; color: var(--text-muted); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 4px; }
+    .segment-btn input[type="radio"]:checked + .segment-content { background: white; color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+    .summary-row { display: flex; justify-content: space-between; align-items: center; }
+    .summary-icon { font-size: 24px; color: #10B981; background: #ECFDF5; padding: 10px; border-radius: 12px; }
+    .summary-details { flex: 1; margin-left: 12px; }
+    .summary-details h4 { margin: 0; font-size: 14px; color: var(--text-main); }
+    .summary-details p { margin: 4px 0 0 0; font-size: 12px; color: var(--text-muted); }
+    .price-val { font-size: 20px; font-weight: 800; color: var(--primary); }
+
+    .sticky-bottom { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 16px 20px; box-shadow: 0 -4px 12px rgba(0,0,0,0.05); z-index: 100; }
+    .submit-btn { background: var(--primary); color: white; padding: 16px; font-size: 16px; font-weight: 700; border-radius: var(--radius-lg); border: none; width: 100%; cursor: pointer; transition: all 0.2s; display: flex; justify-content: space-between; align-items: center; }
+    .submit-btn:disabled { background: #cbd5e1; cursor: not-allowed; }
+
+    .status { margin-top: 12px; padding: 12px; border-radius: var(--radius-md); text-align: center; font-size: 13px; font-weight: 600; display: none; }
+    .loading { background: #fffbeb; color: #b45309; }
+    .success { background: #f0fdf4; color: #15803d; }
+    .error { background: #fef2f2; color: #b91c1c; }
+  </style>
+</head>
+<body>
+
+  <div class="top-hero">
+    <img src="/fserver/static/images/kiosk.png?v=5" alt="HyNa Print Banner" class="banner-img">
+  </div>
+
+  <div class="container">
+    <form id="uploadForm">
+      <div class="ui-card" id="templatesCard" style="display: none;">
+        <div class="section-title" style="color: var(--primary);">
+            <i class="ph-fill ph-files" style="font-size: 22px; margin-right: 8px;"></i> Predefined Forms
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: -10px; margin-bottom: 12px;">Quick-add institution templates directly to your print.</p>
+        <div id="templatesContainer" class="template-grid"></div>
+      </div>
+
+      <div class="ui-card">
+        <div class="section-title"><span class="badge">1</span> Your Cart</div>
+        <input type="file" id="fileInput" name="file" multiple accept="application/pdf, image/png, image/jpeg, image/jpg" onchange="handleFileSelect(this)" style="display: none;">
+        <button type="button" class="add-more-btn" onclick="document.getElementById('fileInput').click()">
+          <i class="ph-bold ph-upload-simple"></i> Upload Your Files
+        </button>
+        <div id="carouselContainer" class="carousel-container" style="display: none;"></div>
+      </div>
+
+      <div class="ui-card" id="pageSelectionCard" style="display: none;">
+        <div class="section-title"><span class="badge">2</span> File Settings</div>
+        <p id="activeFileName" style="font-size: 13px; font-weight: 600; color: var(--primary); margin: 0 0 12px 0; word-break: break-all;"></p>
+
+        <div class="setting-row">
+          <div class="setting-label"><i class="ph-fill ph-palette"></i> Print Type</div>
+          <div class="segmented-control">
+            <label class="segment-btn">
+              <input type="radio" name="fileColor" value="false" id="radioBW" onchange="updateFileColor(this.value)">
+              <div class="segment-content"><i class="ph-bold ph-file-text"></i> B&W</div>
+            </label>
+            <label class="segment-btn">
+              <input type="radio" name="fileColor" value="true" id="radioColor" onchange="updateFileColor(this.value)">
+              <div class="segment-content"><i class="ph-bold ph-aperture"></i> Color</div>
+            </label>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label"><i class="ph-fill ph-file-text"></i> Start Page</div>
+          <div class="stepper" id="startStepperContainer">
+            <button type="button" onclick="stepActiveFile('start', -1)"><i class="ph-bold ph-minus"></i></button>
+            <input type="number" id="activeStart" value="1" readonly>
+            <button type="button" onclick="stepActiveFile('start', 1)"><i class="ph-bold ph-plus"></i></button>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            <i class="ph-fill ph-files"></i> End Page
+            <span id="activeMaxBadge" style="font-size: 11px; font-weight: 400; color: var(--text-muted); background: #F1F5F9; padding: 2px 6px; border-radius: 4px; margin-left: 6px;"></span>
+          </div>
+          <div class="stepper" id="endStepperContainer">
+            <button type="button" onclick="stepActiveFile('end', -1)"><i class="ph-bold ph-minus"></i></button>
+            <input type="number" id="activeEnd" value="1" readonly>
+            <button type="button" onclick="stepActiveFile('end', 1)"><i class="ph-bold ph-plus"></i></button>
+          </div>
+        </div>
+
+        <div class="setting-row" id="orientationContainer">
+          <div class="setting-label"><i class="ph-fill ph-device-rotate"></i> Orientation</div>
+          <div class="segmented-control">
+            <label class="segment-btn">
+              <input type="radio" name="orientation" value="portrait" id="radioPortrait" onchange="updateFileOrientation(this.value)">
+              <div class="segment-content">Portrait</div>
+            </label>
+            <label class="segment-btn">
+              <input type="radio" name="orientation" value="landscape" id="radioLandscape" onchange="updateFileOrientation(this.value)">
+              <div class="segment-content">Landscape</div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="ui-card" id="globalSettingsCard" style="display: none;">
+        <div class="section-title"><span class="badge">3</span> Global Print Settings</div>
+
+        <div class="setting-row">
+          <div class="setting-label"><i class="ph-fill ph-copy"></i> Final Copies</div>
+          <div class="stepper">
+            <button type="button" onclick="stepGlobalVal('copies', -1)"><i class="ph-bold ph-minus"></i></button>
+            <input type="number" id="copies" name="copies" min="1" value="1" readonly>
+            <button type="button" onclick="stepGlobalVal('copies', 1)"><i class="ph-bold ph-plus"></i></button>
+          </div>
+        </div>
+        
+        <div class="setting-row hidden" id="duplexContainer">
+          <div class="setting-label"><i class="ph-fill ph-book-open"></i> Print Sides</div>
+          <div class="segmented-control">
+            <label class="segment-btn">
+              <input type="radio" name="duplex" value="false" checked onchange="updatePrice()">
+              <div class="segment-content">1-Side</div>
+            </label>
+            <label class="segment-btn">
+              <input type="radio" name="duplex" value="true" onchange="updatePrice()">
+              <div class="segment-content">2-Side</div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="ui-card" id="summaryCard" style="display: none;">
+        <div class="section-title"><span class="badge">4</span> Checkout</div>
+        <div class="summary-row">
+          <i class="ph-fill ph-check-circle summary-icon"></i>
+          <div class="summary-details">
+            <h4 id="summaryName">Ready to Print</h4>
+            <p id="summaryDetails">0 Pages</p>
+          </div>
+          <div id="priceDisplay" class="price-val">₹0</div>
+        </div>
+      </div>
+      
+      <div id="statusMsg" class="status"></div>
+
+      <div class="sticky-bottom">
+        <button type="submit" id="submitBtn" class="submit-btn" disabled>
+          <span style="visibility: hidden"><i class="ph-bold ph-arrow-right"></i></span>
+          <span>Continue to Payment</span>
+          <i class="ph-bold ph-arrow-right"></i>
+        </button>
+      </div>
+
+    </form>
+  </div>
+
+<script>
+  const pathSegments = window.location.pathname.split('/');
+  const sessionsIndex = pathSegments.indexOf('sessions');
+  const sessionId = (sessionsIndex !== -1 && pathSegments[sessionsIndex + 1]) ? pathSegments[sessionsIndex + 1] : null;
+
+  let currentPriceBW = 2;
+  let currentPriceColor = 5;
+  let currentPriceBWDuplex = 1.5;
+  let currentPriceColorDuplex = 4.0;
+  let machineSupportsDuplex = false;
+
+  let uploadedFiles = [];
+  let availableTemplates = [];
+  let activeFileId = null;
+  
+  const form = document.getElementById("uploadForm");
+  const statusMsg = document.getElementById("statusMsg");
+  const submitBtn = document.getElementById("submitBtn");
+  const priceDisplay = document.getElementById("priceDisplay");
+  const duplexContainer = document.getElementById("duplexContainer");
+  const summaryCard = document.getElementById("summaryCard");
+  const summaryDetails = document.getElementById("summaryDetails");
+
+  const carouselContainer = document.getElementById("carouselContainer");
+  const pageSelectionCard = document.getElementById("pageSelectionCard");
+  const globalSettingsCard = document.getElementById("globalSettingsCard");
+  const templatesCard = document.getElementById("templatesCard");
+  const templatesContainer = document.getElementById("templatesContainer");
+
+  async function fetchSessionInfo() {
+      try {
+          const res = await fetch(`/fserver/sessions/${sessionId}`);
+          if(!res.ok) throw new Error("Failed to load session");
+          const data = await res.json();
+
+          if(data.price_bw) currentPriceBW = data.price_bw;
+          if(data.price_color) currentPriceColor = data.price_color;
+          if(data.price_bw_duplex) currentPriceBWDuplex = data.price_bw_duplex;
+          if(data.price_color_duplex) currentPriceColorDuplex = data.price_color_duplex;
+
+          if (data.supports_duplex === true) {
+              machineSupportsDuplex = true;
+          }
+          
+          if (data.templates && data.templates.length > 0) {
+              availableTemplates = data.templates;
+              renderTemplates();
+          }
+          updatePrice();
+      } catch (err) { console.error(err); }
+  }
+  
+  fetchSessionInfo();
+
+  function renderTemplates() {
+      if(availableTemplates.length === 0) return;
+      templatesCard.style.display = "block";
+      templatesContainer.innerHTML = ""; 
+
+      availableTemplates.forEach(t => {
+          const html = `
+            <div class="template-btn" onclick="addTemplate('${t.id}')">
+              <div class="template-info">
+                <div class="template-name" title="${t.name}">${t.name}</div>
+                <div class="template-pages">${t.pages} Pages</div>
+              </div>
+              <i class="ph-bold ph-plus template-add-icon"></i>
+            </div>
+          `;
+          templatesContainer.insertAdjacentHTML('beforeend', html);
+      });
+  }
+
+  function addTemplate(templateId) {
+      const template = availableTemplates.find(t => t.id === templateId);
+      if(!template) return;
+
+      const newFile = {
+          id: 'tpl_' + Date.now(),
+          serverFilename: template.file_name,
+          name: template.name,
+          isPdf: true,
+          maxPages: template.pages || 1,
+          start: 1,
+          end: template.pages || 1,
+          orientation: 'portrait',
+          color: 'false',
+          is_template: true
+      };
+      uploadedFiles.push(newFile);
+      activeFileId = newFile.id;
+      renderCarousel();
+      renderActiveSettings();
+      updatePrice();
+  }
+
+  async function handleFileSelect(input) {
+      if (!input.files || input.files.length === 0) return;
+      showStatus("Reading files...", "loading");
+
+      for (let i = 0; i < input.files.length; i++) {
+          const file = input.files[i];
+          const isPdf = file.type === 'application/pdf';
+          let maxPages = 1;
+
+          if (isPdf) {
+              try {
+                  const arrayBuffer = await file.arrayBuffer();
+                  const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                  maxPages = pdfDoc.getPageCount();
+              } catch (e) {
+                  console.error("Error reading PDF:", e);
+                  maxPages = 1; // Fallback
+              }
+          }
+
+          const newFile = {
+              id: 'file_' + Date.now() + '_' + i,
+              fileObj: file,
+              name: file.name,
+              isPdf: isPdf,
+              maxPages: maxPages,
+              start: 1,
+              end: maxPages,
+              orientation: 'portrait',
+              color: 'false',
+              is_template: false
+          };
+          uploadedFiles.push(newFile);
+          activeFileId = newFile.id;
+      }
+
+      input.value = ""; // Reset
+      statusMsg.style.display = "none";
+      renderCarousel();
+      renderActiveSettings();
+      updatePrice();
+  }
+
+  function renderCarousel() {
+      carouselContainer.style.display = uploadedFiles.length > 0 ? "flex" : "none";
+      carouselContainer.innerHTML = "";
+      
+      uploadedFiles.forEach(f => {
+          const isActive = f.id === activeFileId ? "active" : "";
+          const iconType = f.isPdf ? "ph-file-pdf" : "ph-image";
+          const pageText = f.isPdf ? `${f.end - f.start + 1} pgs` : `Image`;
+          const tagHtml = f.is_template ? `<div class="template-tag">TEMPLATE</div>` : ``;
+
+          const html = `
+            <div class="file-card ${isActive}" onclick="selectFile('${f.id}')">
+              <button type="button" class="remove-btn" onclick="removeFile('${f.id}', event)"><i class="ph-bold ph-x"></i></button>
+              <i class="${iconType} icon"></i>
+              <div class="name" title="${f.name}">${f.name}</div>
+              <div class="pages">${pageText}</div>
+              ${tagHtml}
+            </div>
+          `;
+          carouselContainer.insertAdjacentHTML('beforeend', html);
+      });
+
+      if (uploadedFiles.length === 0) {
+          pageSelectionCard.style.display = "none";
+          globalSettingsCard.style.display = "none";
+          summaryCard.style.display = "none";
+          submitBtn.disabled = true;
+      } else {
+          globalSettingsCard.style.display = "block";
+          summaryCard.style.display = "block";
+          submitBtn.disabled = false;
+      }
+  }
+
+  function selectFile(id) {
+      activeFileId = id;
+      renderCarousel();
+      renderActiveSettings();
+  }
+
+  function removeFile(id, event) {
+      event.stopPropagation();
+      uploadedFiles = uploadedFiles.filter(f => f.id !== id);
+      if (activeFileId === id) activeFileId = uploadedFiles.length > 0 ? uploadedFiles[0].id : null;
+      renderCarousel();
+      renderActiveSettings();
+      updatePrice();
+  }
+  
+  function renderActiveSettings() {
+      if(!activeFileId) return;
+
+      const activeFile = uploadedFiles.find(f => f.id === activeFileId);
+      if(!activeFile) return;
+      
+      pageSelectionCard.style.display = "block";
+      document.getElementById("activeFileName").innerText = activeFile.name;
+      
+      const startStepper = document.getElementById("startStepperContainer");
+      const endStepper = document.getElementById("endStepperContainer");
+
+      if (!activeFile.isPdf) {
+          startStepper.classList.add("disabled");
+          endStepper.classList.add("disabled");
+          document.getElementById("activeStart").value = 1;
+          document.getElementById("activeEnd").value = 1;
+          document.getElementById("activeMaxBadge").innerText = "1 Max";
+      } else {
+          startStepper.classList.remove("disabled");
+          endStepper.classList.remove("disabled");
+          document.getElementById("activeStart").value = activeFile.start;
+          document.getElementById("activeEnd").value = activeFile.end;
+          document.getElementById("activeMaxBadge").innerText = `${activeFile.maxPages} Max`;
+      }
+      
+      if(activeFile.orientation === 'landscape') {
+          document.getElementById("radioLandscape").checked = true;
+      } else {
+          document.getElementById("radioPortrait").checked = true;
+      }
+
+      if(activeFile.color === 'true') {
+          document.getElementById("radioColor").checked = true;
+      } else {
+          document.getElementById("radioBW").checked = true;
+      }
+  }
+
+  function updateFileOrientation(val) {
+      const file = uploadedFiles.find(f => f.id === activeFileId);
+      if(file) file.orientation = val;
+  }
+
+  function updateFileColor(val) {
+      const file = uploadedFiles.find(f => f.id === activeFileId);
+      if(file) file.color = val;
+      updatePrice();
+  }
+  
+  function stepActiveFile(field, delta) {
+      const file = uploadedFiles.find(f => f.id === activeFileId);
+      if(!file || !file.isPdf) return;
+
+      let val = file[field] + delta;
+      if(val < 1) val = 1;
+      if(val > file.maxPages) val = file.maxPages;
+
+      if(field === 'start' && val > file.end) file.end = val;
+      if(field === 'end' && val < file.start) file.start = val;
+
+      file[field] = val;
+      renderActiveSettings();
+      renderCarousel();
+      updatePrice();
+  }
+
+  function stepGlobalVal(id, delta) {
+      const input = document.getElementById(id);
+      let val = parseInt(input.value) || 1;
+      val += delta;
+      if (val < 1) val = 1;
+      input.value = val;
+      updatePrice();
+  }
+
+  function updatePrice() {
+      if(uploadedFiles.length === 0) {
+          priceDisplay.innerText = "₹0";
+          summaryDetails.innerText = "0 Pages";
+          duplexContainer.classList.add("hidden");
+          return;
+      }
+
+      let totalPagesAllFiles = 0;
+      uploadedFiles.forEach(f => {
+          totalPagesAllFiles += (f.end - f.start + 1);
+      });
+
+      if (machineSupportsDuplex && totalPagesAllFiles > 1) {
+          duplexContainer.classList.remove("hidden");
+      } else {
+          duplexContainer.classList.add("hidden");
+          document.querySelector('input[name="duplex"][value="false"]').checked = true;
+      }
+
+      const copies = parseInt(document.getElementById("copies").value) || 1;
+      const isDuplex = document.querySelector('input[name="duplex"]:checked').value === "true";
+      
+      let grandTotalCost = 0;
+
+      uploadedFiles.forEach(f => {
+          let pagesInThisFile = (f.end - f.start + 1);
+          
+          let simplexRate = (f.color === 'true') ? currentPriceColor : currentPriceBW;
+          let duplexRate = (f.color === 'true') ? currentPriceColorDuplex : currentPriceBWDuplex;
+
+          if (isDuplex) {
+              let fullSheets = Math.floor(pagesInThisFile / 2);
+              let oddPages = pagesInThisFile % 2;
+              grandTotalCost += (fullSheets * duplexRate) + (oddPages * simplexRate);
+          } else {
+              grandTotalCost += (pagesInThisFile * simplexRate);
+          }
+      });
+
+      const finalPrice = grandTotalCost * copies;
+      const totalPrintedPages = totalPagesAllFiles * copies;
+
+      priceDisplay.innerText = "₹" + finalPrice;
+      summaryDetails.innerText = `${uploadedFiles.length} File${uploadedFiles.length > 1 ? 's' : ''} • ${totalPrintedPages} Total Page${totalPrintedPages > 1 ? 's' : ''}`;
+  }
+
+  function showStatus(msg, type) {
+      statusMsg.style.display = "block";
+      statusMsg.innerHTML = type === 'loading' ? `<i class="ph-bold ph-spinner ph-spin"></i> ${msg}` : msg;
+      statusMsg.className = "status " + type;
+      statusMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  // 🚀 UPDATED: Form submit using XMLHttpRequest for precise progress tracking
+  form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if(uploadedFiles.length === 0) {
+          showStatus("Please add at least one file or template.", "error");
+          return;
+      }
+      
+      submitBtn.disabled = true;
+      
+      const formData = new FormData();
+      const manifest = [];
+
+      uploadedFiles.forEach(f => {
+          if (!f.is_template) {
+              formData.append("files", f.fileObj, f.name);
+          }
+          
+          manifest.push({
+              filename: f.is_template ? f.serverFilename : f.name,
+              start_page: f.start,
+              end_page: f.end,
+              orientation: f.orientation,
+              color: f.color,
+              is_template: f.is_template
+          });
+      });
+
+      formData.append("manifest", JSON.stringify(manifest));
+      
+      const duplexEl = document.querySelector('input[name="duplex"]:checked');
+      formData.append("duplex", duplexEl ? duplexEl.value : "false");
+      formData.append("copies", document.getElementById('copies').value);
+
+      try {
+          // Promise-wrapped XMLHttpRequest for progress tracking
+          await new Promise((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              xhr.open('POST', `/fserver/sessions/${sessionId}/upload`, true);
+
+              xhr.upload.onprogress = function(event) {
+                  if (event.lengthComputable) {
+                      const percent = Math.round((event.loaded / event.total) * 100);
+                      if (percent < 100) {
+                          showStatus(`Uploading... ${percent}%`, "loading");
+                      } else {
+                          showStatus(`Merging & Compressing... Please wait.`, "loading");
+                      }
+                  }
+              };
+
+              xhr.onload = function() {
+                  if (xhr.status >= 200 && xhr.status < 300) {
+                      resolve(JSON.parse(xhr.responseText));
+                  } else {
+                      let errMsg = "Upload failed";
+                      try { errMsg = JSON.parse(xhr.responseText).detail || errMsg; } catch(e){}
+                      reject(new Error(errMsg));
+                  }
+              };
+
+              xhr.onerror = function() {
+                  reject(new Error("Network Error: Could not reach the server."));
+              };
+
+              xhr.send(formData);
+          });
+
+          showStatus("Upload successful! Loading payment...", "success");
+          const payRes = await fetch(`/fserver/sessions/${sessionId}/payment`, { method: 'POST' });
+          if(!payRes.ok) throw new Error("Payment initialization failed");
+          
+          const payData = await payRes.json();
+          const options = {
+              key: payData.razorpay_key,
+              amount: payData.amount,
+              currency: payData.currency,
+              order_id: payData.order_id,
+              name: "HyNa Print",
+              description: "Kiosk Print Service",
+              handler: function (response) {
+                  showStatus("Payment successful! Redirecting...", "success");
+                  setTimeout(() => {
+                      window.location.href = `/fserver/payment-success?session_id=${sessionId}`;
+                  }, 1500);
+              },
+              theme: { color: "#4C1D95" }
+          };
+          const rzp = new Razorpay(options);
+          rzp.open();
+
+          submitBtn.disabled = false;
+          statusMsg.style.display = "none";
+
+      } catch (err) {
+          showStatus(err.message, "error");
+          submitBtn.disabled = false;
+      }
+  });
+</script>
+</body>
+</html>

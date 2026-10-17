@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>HyNa Remote Scanner</title>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    :root {
+      --primary: #6D28D9;
+      --primary-dark: #4C1D95;
+      --bg-main: #0f172a;
+      --glass-bg: rgba(255, 255, 255, 0.92);
+      --glass-border: rgba(255, 255, 255, 0.4);
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --control-bg: #f1f5f9;
+      --radius-lg: 20px;
+      --radius-md: 12px;
+    }
+
+    body {
+      background: linear-gradient(135deg, #0f172a 0%, #2e1065 100%);
+      font-family: 'Inter', sans-serif;
+      margin: 0; padding: 12px;
+      display: flex; justify-content: center; align-items: center; 
+      min-height: 100vh; overflow-x: hidden;
+    }
+
+    .card {
+      background: var(--glass-bg); 
+      padding: 24px; 
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6); 
+      width: 100%; max-width: 400px;
+      backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+      animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      box-sizing: border-box;
+    }
+
+    @keyframes slideUp { 
+      from { opacity: 0; transform: translateY(20px); } 
+      to { opacity: 1; transform: translateY(0); } 
+    }
+    
+    .header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .header .icon-wrapper { width: 44px; height: 44px; background: rgba(109,40,217,0.1); border-radius: 12px; display: flex; justify-content: center; align-items: center; }
+    .header i { font-size: 24px; color: var(--primary); }
+    .header h2 { margin: 0; font-size: 20px; font-weight: 800; color: var(--text-main); letter-spacing: -0.5px;}
+    .header p { color: var(--text-muted); font-size: 12px; margin: 2px 0 0 0; font-weight: 500;}
+
+    /* Step 1: Gallery */
+    .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; max-height: 40vh; overflow-y: auto; padding-right: 4px;}
+    .thumb-wrapper {
+        position: relative; border-radius: 12px; overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 2px solid #e2e8f0;
+        aspect-ratio: 1 / 1.4; background: #e2e8f0; display: flex; align-items: center; justify-content: center;
+    }
+    .thumb-wrapper img { width: 100%; height: 100%; object-fit: cover; }
+    .page-badge { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.7); color: white; font-size: 11px; font-weight: bold; padding: 4px 8px; border-radius: 6px; }
+
+    /* Step 2: Settings Grid */
+    .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .full-width { grid-column: span 2; }
+    label.section-lbl { display: block; margin-bottom: 6px; font-weight: 700; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* Controls */
+    .stepper { display: flex; background: var(--control-bg); border-radius: var(--radius-md); padding: 4px; height: 38px; box-sizing: border-box;}
+    .stepper button { background: white; border: none; width: 34px; border-radius: 8px; color: var(--text-main); cursor: pointer; font-size: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);}
+    .stepper button:active { transform: scale(0.95); }
+    .stepper input { flex: 1; width: 100%; text-align: center; border: none; background: transparent; font-size: 15px; font-weight: 700; color: var(--text-main); padding: 0; margin: 0;}
+    .stepper input:focus { outline: none; }
+    .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    
+    .radio-group { display: flex; background: var(--control-bg); border-radius: var(--radius-md); padding: 4px; height: 38px; box-sizing: border-box;}
+    .radio-btn { flex: 1; position: relative; }
+    .radio-btn input[type="radio"] { position: absolute; opacity: 0; }
+    .radio-content { display: flex; align-items: center; justify-content: center; gap: 6px; height: 100%; border-radius: 8px; color: var(--text-muted); font-size: 12px; font-weight: 700; cursor: pointer; transition: 0.2s;}
+    .radio-btn input[type="radio"]:checked + .radio-content { background: white; color: var(--primary-dark); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+
+    /* Price Box */
+    .price-box {
+        display: flex; justify-content: space-between; align-items: center;
+        background: linear-gradient(to right, rgba(109, 40, 217, 0.05), rgba(109, 40, 217, 0.1));
+        padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid rgba(109, 40, 217, 0.15); margin-bottom: 16px;
+    }
+    .price-label { font-size: 12px; color: var(--primary-dark); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .price-val { color: var(--primary-dark); font-weight: 800; font-size: 24px; }
+
+    /* Buttons */
+    .btn { background: var(--primary); color: white; padding: 16px; font-size: 15px; font-weight: 700; border-radius: var(--radius-md); border: none; width: 100%; cursor: pointer; transition: 0.2s; display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 12px;}
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { background: #cbd5e1; cursor: not-allowed; }
+    
+    .btn-secondary { background: white; color: var(--primary); border: 2px solid var(--primary); }
+    .btn-success { background: #10b981; }
+
+    .status { margin-top: 12px; padding: 12px; border-radius: var(--radius-md); text-align: center; font-size: 13px; font-weight: 600; display: none; }
+    .loading { background: #fffbeb; color: #b45309; }
+    .success { background: #f0fdf4; color: #15803d; }
+    .error { background: #fef2f2; color: #b91c1c; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    
+    <div id="step1-scan">
+        <div class="header">
+            <div class="icon-wrapper"><i class="ph-bold ph-scanner"></i></div>
+            <div>
+              <h2>Remote Scanner</h2>
+              <p>Place paper on kiosk to begin</p>
+            </div>
+        </div>
+
+        <div id="gallery" class="gallery">
+            </div>
+
+        <button class="btn btn-secondary" id="scanBtn" onclick="triggerScan()">
+            <i class="ph-bold ph-plus"></i> <span>Scan New Page</span>
+        </button>
+
+        <button class="btn btn-success" id="nextBtn" style="display:none;" onclick="goToSettings()">
+            <span>Next: Print Settings</span> <i class="ph-bold ph-arrow-right"></i>
+        </button>
+    </div>
+
+    <div id="step2-settings" style="display:none;">
+        <div class="header">
+            <div class="icon-wrapper" style="background: rgba(16, 185, 129, 0.1);"><i class="ph-bold ph-sliders" style="color: #10b981;"></i></div>
+            <div>
+              <h2>Print Settings</h2>
+              <p id="pageCountLabel">0 Pages Scanned</p>
+            </div>
+        </div>
+
+        <form id="settingsForm">
+            <div class="settings-grid">
+                
+                <div class="full-width">
+                    <label class="section-lbl">Copies</label>
+                    <div class="stepper">
+                        <button type="button" onclick="stepVal('copies', -1)"><i class="ph-bold ph-minus"></i></button>
+                        <input type="number" id="copies" name="copies" min="1" value="1" readonly onchange="updatePrice()">
+                        <button type="button" onclick="stepVal('copies', 1)"><i class="ph-bold ph-plus"></i></button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="section-lbl">Color Mode</label>
+                    <div class="radio-group">
+                    <label class="radio-btn">
+                        <input type="radio" name="color" value="false" checked onchange="updatePrice()">
+                        <div class="radio-content">B&W</div>
+                    </label>
+                    <label class="radio-btn">
+                        <input type="radio" name="color" value="true" onchange="updatePrice()">
+                        <div class="radio-content">Color</div>
+                    </label>
+                    </div>
+                </div>
+
+                <div id="duplexContainer" style="display: none;">
+                    <label class="section-lbl">Print Sides</label>
+                    <div class="radio-group">
+                    <label class="radio-btn">
+                        <input type="radio" name="duplex" value="false" checked onchange="updatePrice()">
+                        <div class="radio-content">1-Side</div>
+                    </label>
+                    <label class="radio-btn">
+                        <input type="radio" name="duplex" value="true" onchange="updatePrice()">
+                        <div class="radio-content">2-Side</div>
+                    </label>
+                    </div>
+                </div>
+
+                <div id="orientationContainer" class="full-width">
+                    <label class="section-lbl">Orientation</label>
+                    <div class="radio-group">
+                    <label class="radio-btn">
+                        <input type="radio" name="orientation" value="portrait" checked>
+                        <div class="radio-content"><i class="ph-bold ph-file-text"></i> Portrait</div>
+                    </label>
+                    <label class="radio-btn">
+                        <input type="radio" name="orientation" value="landscape">
+                        <div class="radio-content"><i class="ph-bold ph-file-text" style="transform: rotate(90deg);"></i> Landscape</div>
+                    </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="price-box">
+                <span class="price-label">Total to Pay</span>
+                <span id="priceDisplay" class="price-val">₹...</span>
+            </div>
+
+            <button type="button" class="btn btn-secondary" onclick="goBackToScan()" style="margin-bottom: 8px;">
+                <i class="ph-bold ph-arrow-left"></i> <span>Back to Scanner</span>
+            </button>
+            <button type="submit" id="submitBtn" class="btn">
+                <i class="ph-bold ph-credit-card"></i> <span>Pay & Print</span>
+            </button>
+        </form>
+    </div>
+
+    <div id="statusMsg" class="status"></div>
+  </div>
+
+<script>
+  const pathSegments = window.location.pathname.split('/');
+  const sessionsIndex = pathSegments.indexOf('sessions');
+  const sessionId = (sessionsIndex !== -1 && pathSegments[sessionsIndex + 1]) ? pathSegments[sessionsIndex + 1] : null;
+
+  if (!sessionId) document.body.innerHTML = "<h2 style='color:white;text-align:center;'>Invalid Session URL</h2>";
+
+  // State Variables
+  let currentPriceBW = 2;
+  let currentPriceColor = 5;
+  let scannedPagesCount = 0;
+  let expectedPages = 0;
+  let pollInterval;
+
+  // DOM Elements
+  const scanBtn = document.getElementById("scanBtn");
+  const nextBtn = document.getElementById("nextBtn");
+  const gallery = document.getElementById("gallery");
+  const statusMsg = document.getElementById("statusMsg");
+  const submitBtn = document.getElementById("submitBtn");
+  const priceDisplay = document.getElementById("priceDisplay");
+  const duplexContainer = document.getElementById("duplexContainer");
+  const orientationContainer = document.getElementById("orientationContainer");
+  const pageCountLabel = document.getElementById("pageCountLabel");
+
+  // ==========================================
+  // INITIALIZATION
+  // ==========================================
+  async function init() {
+      // 1. Fetch Prices
+      try {
+          const res = await fetch(`/server/sessions/${sessionId}`);
+          if(res.ok) {
+              const data = await res.json();
+              if(data.price_bw) currentPriceBW = data.price_bw;
+              if(data.price_color) currentPriceColor = data.price_color;
+              if (data.supports_duplex === true) {
+                  duplexContainer.style.display = "block";
+                  orientationContainer.classList.remove("full-width");
+              }
+          }
+      } catch (err) { console.error("Price fetch error:", err); }
+
+      // 2. Fetch Existing Gallery
+      fetchGallery();
+  }
+  init();
+
+  // ==========================================
+  // STEP 1: SCANNING LOGIC
+  // ==========================================
+  async function triggerScan() {
+      scanBtn.disabled = true;
+      scanBtn.innerHTML = '<i class="ph-bold ph-spinner ph-spin"></i> <span>Hardware Scanning...</span>';
+      
+      try {
+          await fetch(`/server/sessions/${sessionId}/trigger-scan-cmd`, {method: 'POST'});
+          expectedPages++;
+          pollInterval = setInterval(fetchGallery, 2000);
+      } catch (err) {
+          showStatus("Failed to contact scanner.", "error");
+          scanBtn.disabled = false;
+          scanBtn.innerHTML = '<i class="ph-bold ph-plus"></i> <span>Scan New Page</span>';
+      }
+  }
+
+  async function fetchGallery() {
+      try {
+          const res = await fetch(`/server/sessions/${sessionId}/scanned-pages`);
+          const data = await res.json();
+          scannedPagesCount = data.pages.length;
+          
+          if (scannedPagesCount >= expectedPages && expectedPages > 0) {
+              clearInterval(pollInterval);
+              scanBtn.disabled = false;
+              scanBtn.innerHTML = '<i class="ph-bold ph-plus"></i> <span>Scan Another Page</span>';
+          }
+
+          if (scannedPagesCount > 0) {
+              nextBtn.style.display = "flex";
+              pageCountLabel.innerText = `${scannedPagesCount} Page(s) Ready`;
+          }
+
+          gallery.innerHTML = "";
+          data.pages.forEach((url, index) => {
+              gallery.innerHTML += `
+                  <div class="thumb-wrapper">
+                      <img src="${url}?t=${new Date().getTime()}" alt="Page ${index+1}">
+                      <div class="page-badge">Pg ${index+1}</div>
+                  </div>
+              `;
+          });
+      } catch (err) { console.error("Polling error", err); }
+  }
+
+  // ==========================================
+  // VIEW SWITCHING
+  // ==========================================
+  function goToSettings() {
+      document.getElementById("step1-scan").style.display = "none";
+      document.getElementById("step2-settings").style.display = "block";
+      statusMsg.style.display = "none";
+      updatePrice();
+  }
+
+  function goBackToScan() {
+      document.getElementById("step2-settings").style.display = "none";
+      document.getElementById("step1-scan").style.display = "block";
+  }
+
+  function stepVal(id, delta) {
+      const input = document.getElementById(id);
+      let val = parseInt(input.value) || 1;
+      val += delta;
+      if (val < parseInt(input.min)) val = parseInt(input.min);
+      input.value = val;
+      updatePrice();
+  }
+
+  function updatePrice() {
+      const copies = parseInt(document.getElementById("copies").value) || 1;
+      const isColor = document.querySelector('input[name="color"]:checked').value === "true";
+      const rate = isColor ? currentPriceColor : currentPriceBW;
+      
+      // Calculate based on physical pages scanned * copies
+      priceDisplay.innerText = "₹" + (scannedPagesCount * copies * rate);
+  }
+
+  function showStatus(msg, type) {
+      statusMsg.style.display = "block";
+      statusMsg.innerHTML = type === 'loading' ? `<i class="ph-bold ph-spinner ph-spin"></i> ${msg}` : msg;
+      statusMsg.className = "status " + type;
+  }
+
+  // ==========================================
+  // STEP 2: FINALIZE & PAY
+  // ==========================================
+  document.getElementById("settingsForm").onsubmit = async (e) => {
+    e.preventDefault();
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="ph-bold ph-spinner ph-spin"></i> <span>Processing PDF...</span>';
+    showStatus("Merging your scans into a PDF...", "loading");
+
+    try {
+      const formData = new FormData();
+      formData.append("copies", document.getElementById("copies").value);
+      formData.append("color", document.querySelector('input[name="color"]:checked').value);
+      formData.append("orientation", document.querySelector('input[name="orientation"]:checked').value);
+      
+      const duplexVal = duplexContainer.style.display !== "none" ? document.querySelector('input[name="duplex"]:checked').value : "false";
+      formData.append("duplex", duplexVal);
+
+      // 1. Finalize the PDF
+      const finalRes = await fetch(`/server/sessions/${sessionId}/finalize-scan`, { method: "POST", body: formData });
+      if (!finalRes.ok) {
+          const err = await finalRes.json().catch(() => ({}));
+          throw new Error(err.detail || "Failed to finalize PDF");
+      }
+
+      showStatus("Secure connection established. Initializing Payment...", "success");
+
+      // 2. Request Payment Gateway
+      const payRes = await fetch(`/server/sessions/${sessionId}/payment`, { method: "POST" });
+      const payData = await payRes.json();
+      if (!payRes.ok) throw new Error(payData.detail || "Payment creation failed");
+
+      // 3. Open Razorpay
+      const options = {
+          "key": payData.razorpay_key,
+          "amount": payData.amount,
+          "currency": payData.currency,
+          "name": "HyNa Print",
+          "description": "Secure Print Job",
+          "order_id": payData.order_id,
+          "handler": function () {
+              showStatus("Payment Success! Redirecting...", "success");
+              window.location.href = `/server/payment-success?session_id=${sessionId}`;
+          },
+          "modal": { "ondismiss": function() { showStatus("Payment cancelled.", "error"); submitBtn.disabled = false; submitBtn.innerHTML = '<i class="ph-bold ph-credit-card"></i> <span>Pay & Print</span>'; } },
+          "theme": { "color": "#6D28D9" }
+      };
+
+      const rzp = new Razorpay(options);
+      rzp.on('payment.failed', function(r) { showStatus("Failed: " + r.error.description, "error"); submitBtn.disabled = false; submitBtn.innerHTML = '<i class="ph-bold ph-credit-card"></i> <span>Pay & Print</span>'; });
+      rzp.open();
+
+    } catch (err) {
+      showStatus(err.message, "error");
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="ph-bold ph-credit-card"></i> <span>Pay & Print</span>';
+    }
+  };
+</script>
+</body>
+</html>
