@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 import logging
 
 # ✅ IMPORT THE MQTT FUNCTION
-from app.routers.sessions import push_mqtt_command, get_file_url
+from app.routers.sessions import dispatch_start_print
 
 router = APIRouter()
 logger = logging.getLogger("payment_success")
@@ -182,30 +182,13 @@ async def payment_success(request: Request, db: Session = Depends(get_db)):
     # ✅ ZERO POLLING: Just read the local database!
     if session.payment_status == "success":
         
-        # 🚀 ADDED: SEND MQTT TRIGGER HERE!
-        # Only send if it hasn't already started printing
-        if session.status not in ["printing", "completed", "failed"]:
-            session.status = "ready_to_print"
-            db.commit()
-            
-            try:
-                push_mqtt_command(
-                    machine_id=session.machine_id,
-                    action="start_print",
-                    session_data={
-                        "id": session.id,
-                        "file_url": get_file_url(session.file_path),
-                        "start_page": session.start_page,
-                        "end_page": session.end_page,
-                        "copies": session.copies,
-                        "color": session.color,
-                        "duplex": getattr(session, "duplex", False),
-                        "orientation": session.orientation
-                    }
-                )
-            except Exception as e:
-                logger.error(f"❌ Failed to push MQTT on payment success: {e}")
-        # ---------------------------------------------
+        # Safety net only. The webhook normally dispatched already; dispatch_start_print is
+        # exactly-once, so reloads / extra tabs / retries are no-ops. It only fires if the
+        # webhook's publish failed and released the job back to 'ready_to_print'.
+        try:
+            dispatch_start_print(db, session.id)
+        except Exception as e:
+            logger.error(f"❌ start_print fallback failed: {e}")
 
         return HTML_TEMPLATE.format(
             title="Payment Successful!",

@@ -5,11 +5,7 @@ import razorpay
 from app.database import get_db
 from app.models import Session as SessionModel, TransactionLog
 
-from app.routers.sessions import (
-    push_mqtt_command,
-    get_file_url,
-    process_print_accounting,
-)
+from app.routers.sessions import run_claimed_print
 
 from app.config import settings
 
@@ -83,21 +79,31 @@ async def razorpay_webhook(
                 "message": "Session not found"
             }
 
-        # Duplicate protection
+        # Duplicate protection (cheap pre-check; the UPDATE below is the real guard)
         if session.payment_status == "success":
             return {
                 "status": "ignored",
                 "message": "Already processed"
             }
 
-        session.payment_status = "success"
+        # Mark paid AND claim the print in ONE transaction, so nobody (the kiosk poll,
+        # /payment-success, a webhook retry) can ever see "paid + ready_to_print".
+        paid_now = (
+            db.query(SessionModel)
+            .filter(SessionModel.id == session.id, SessionModel.payment_status != "success")
+            .update({"payment_status": "success"}, synchronize_session=False)
+        )
+        if not paid_now:
+            db.rollback()
+            return {"status": "ignored", "message": "Already processed"}
 
-        if session.status not in [
-            "printing",
-            "completed",
-            "failed",
-        ]:
-            session.status = "ready_to_print"
+        # Anything that hasn't started printing is claimable (incl. 'failed' = paid after
+        # the kiosk expired the session, same as the old behaviour).
+        claimed = (
+            db.query(SessionModel)
+            .filter(SessionModel.id == session.id, SessionModel.status.notin_(("printing", "completed")))
+            .update({"status": "printing"}, synchronize_session=False)
+        )
 
         log = (
             db.query(TransactionLog)
@@ -111,28 +117,8 @@ async def razorpay_webhook(
 
         db.commit()
 
-        try:
-            process_print_accounting(db, session)
-        except Exception as e:
-            print(
-                f"❌ Accounting Error "
-                f"(Session {session.id}): {e}"
-            )
-
-        push_mqtt_command(
-            machine_id=session.machine_id,
-            action="start_print",
-            session_data={
-                "id": session.id,
-                "file_url": get_file_url(session.file_path),
-                "start_page": session.start_page,
-                "end_page": session.end_page,
-                "copies": session.copies,
-                "color": session.color,
-                "duplex": getattr(session, "duplex", False),
-                "orientation": session.orientation,
-            },
-        )
+        if claimed:
+            run_claimed_print(db, session.id)
 
     # ==================================
     # PAYMENT FAILED
@@ -151,7 +137,8 @@ async def razorpay_webhook(
             .first()
         )
 
-        if session:
+        # An earlier failed attempt can arrive AFTER the successful one - never downgrade a paid session.
+        if session and session.payment_status != "success":
             session.payment_status = "failed"
 
         log = (
@@ -160,7 +147,7 @@ async def razorpay_webhook(
             .first()
         )
 
-        if log:
+        if log and log.payment_status != "SUCCESS":
             log.payment_status = "FAILED"
 
         db.commit()

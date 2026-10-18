@@ -60,7 +60,7 @@ def parse_bool(value: str | bool | None) -> bool:
 # =======================================================================
 # 🚀 MQTT HELPER
 # =======================================================================
-def push_mqtt_command(machine_id: str, action: str, session_data: dict):
+def push_mqtt_command(machine_id: str, action: str, session_data: dict) -> bool:
     try:
         topic = f"kiosks/{machine_id}/commands"
 
@@ -84,9 +84,11 @@ def push_mqtt_command(machine_id: str, action: str, session_data: dict):
         )
 
         print(f"🚀 SUCCESS: MQTT '{action}' command sent to {topic}!")
+        return True
 
     except Exception as e:
         print(f"❌ MQTT Publish Error: {e}")
+        return False
 
 def get_file_url(file_path):
     file_name = os.path.basename(file_path) if file_path else ""
@@ -103,7 +105,12 @@ def process_print_accounting(db: DBSession, session: SessionModel):
     machine_status = db.query(MachineStatus).filter_by(machine_id=session.machine_id).first()
     toner = db.query(TonerConsumption).filter_by(machine_id=session.machine_id).first()
 
-    if not current_machine or not machine_status or not toner: return
+    if not current_machine or not machine_status: return
+    if not toner:
+        # Un-configured toner must not skip accounting (no PrintJob / earnings / paper deduction).
+        # Unset rates fall back to the 0.02 / 0.05 defaults below.
+        toner = TonerConsumption(machine_id=session.machine_id)
+        db.add(toner)
 
     printed_pages = int(session.total_pages or 0)
     copies = int(session.copies or 1)
@@ -178,6 +185,56 @@ def process_print_accounting(db: DBSession, session: SessionModel):
     db.add(print_job)
     session.status = "printing"
     db.commit()
+
+# =======================================================================
+# 🚀 EXACTLY-ONCE START_PRINT
+# Whoever atomically flips the session to 'printing' owns the dispatch.
+# Webhook retries, order.paid + payment.captured, /payment-success reloads,
+# the cloud link and /pending can all race - only one of them wins.
+# =======================================================================
+def build_start_print_data(session: SessionModel) -> dict:
+    return {
+        "id": session.id,
+        "file_url": get_file_url(session.file_path),
+        "start_page": session.start_page,
+        "end_page": session.end_page,
+        "copies": session.copies,
+        "color": session.color,
+        "duplex": getattr(session, "duplex", False),
+        "orientation": session.orientation or "portrait",
+    }
+
+
+def run_claimed_print(db: DBSession, session_id: str) -> bool:
+    """Accounting + MQTT publish. Call ONLY after YOU flipped the session to 'printing'."""
+    session = db.query(SessionModel).filter_by(id=session_id).first()
+    try:
+        process_print_accounting(db, session)  # idempotent (PrintJob guard)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Accounting failed for session {session_id}: {e}")
+        session = db.query(SessionModel).filter_by(id=session_id).first()
+
+    if push_mqtt_command(session.machine_id, "start_print", build_start_print_data(session)):
+        return True
+
+    # Nothing reached the kiosk: hand the job back so /pending or the next retry can serve it.
+    db.query(SessionModel).filter(
+        SessionModel.id == session_id, SessionModel.status == "printing"
+    ).update({"status": "ready_to_print"}, synchronize_session=False)
+    db.commit()
+    return False
+
+
+def dispatch_start_print(db: DBSession, session_id: str, from_statuses=("ready_to_print",)) -> bool:
+    """Claim a paid session and start it. Returns False if someone else already did."""
+    claimed = db.query(SessionModel).filter(
+        SessionModel.id == session_id,
+        SessionModel.payment_status == "success",
+        SessionModel.status.in_(from_statuses),
+    ).update({"status": "printing"}, synchronize_session=False)
+    db.commit()
+    return claimed == 1 and run_claimed_print(db, session_id)
 
 # =======================================================================
 # 1) SERVE UPLOAD PAGE (GET REQUEST)
@@ -833,22 +890,7 @@ def link_cloud_job(
     db.refresh(session)
 
     try:
-        process_print_accounting(db, session)
-        
-        push_mqtt_command(
-            machine_id=session.machine_id,
-            action="start_print",
-            session_data={
-                "id": session.id,
-                "file_url": get_file_url(session.file_path),
-                "start_page": session.start_page,
-                "end_page": session.end_page,
-                "copies": session.copies,
-                "color": session.color,
-                "duplex": getattr(session, "duplex", False),
-                "orientation": "portrait"
-            }
-        )
+        dispatch_start_print(db, session.id)  # paid + ready_to_print -> claim, account, publish once
     except Exception as e:
         print(f"❌ Error triggering MQTT print job: {e}")
 
